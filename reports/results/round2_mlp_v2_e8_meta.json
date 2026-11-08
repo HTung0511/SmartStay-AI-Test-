@@ -8,13 +8,11 @@
   "proba_mean": 0.15666306018829346,
   "proba_min": 2.822901114996057e-05,
   "proba_max": 0.9920627474784851,
-  "reload_check": {
-    "n_rows_reload": 14400,
-    "n_val_rows": 14400,
-    "match_order": true,
-    "identical_reload_vs_npy": true,
-    "max_abs_diff_reload_vs_npy": 2.978208502035784e-08
-  },
+  "proba_valid_01": true,
+  "length_check_ok": true,
+  "model_vs_npy_check": true,
+  "max_abs_diff_model_vs_npy": 2.978208502035784e-08,
+  "order_note": "thu tu dong val.csv duoc duong bo boi save_proba va load_xy; do dai bang nhau khong chung minh thu tu",
   "threshold_grid": {
     "grid": "DEFAULT_THRESHOLDS = np.round(np.arange(0.01, 1.00, 0.01), 2)",
     "n_thresholds": 99,
@@ -39,7 +37,8 @@
     "saving_vs_never": 0.0814180929095355,
     "gap_vs_theory": -0.23666666666666664
   },
-  "note": "Chi phí là GIẢ ĐỊNH của nhóm (src/cost.py), không phải số liệu thật. Ket qua chi trên VAL (dung de chon mo hinh va nguong), KHONG la danh gia tren TEST. Khong mo tap test.",
+  "r2_gate_passed": true,
+  "note": "Chi phep la GIA DINH cua nhom (src/cost.py), khong phai so lieu thap. Ket qua chi tren VAL (dung de chon mo hinh va nguong), KHONG la danh gia tren TEST. Khong mo tap test.",
   "library_versions": {
     "python": "3.11.2",
     "scikit-learn": "1.9.1",
