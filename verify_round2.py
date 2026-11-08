@@ -1,7 +1,7 @@
-"""Kiem tra PR #1: output thuc te cua Round 2 MLP (khong chot test).
+"""Kiem tra PR #1: output thuc te cua Round 2 MLP (khong chot test, khong chay lai toan bo lưới).
 
-Chon cau hinh co PR-AUC cao nhat giua B1 va B2. Neu B1 thang, dung cac gia
-tri mac dinh cua MLPClassifier (lr=None, bs=None).
+Doc file CSV da luu tuot lan chay truoc; chi chay lai so sanh v1-v2 theo cap seed
+(10 fit, nhanh) va kiem tra nap lai mlp_v2.joblib vs .npy.
 """
 import sys, os, platform, time, itertools
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -15,15 +15,11 @@ from sklearn.pipeline import Pipeline
 
 from src.data import load_xy, SEED, REPO_ROOT
 from src.features import build_preprocessor, check_columns
-from src.evaluate import evaluate, evaluate_by_group, load_proba
+from src.evaluate import evaluate, load_proba
 
 RESULTS = REPO_ROOT / "reports" / "results"
 MODELS = REPO_ROOT / "models"
 RESULTS.mkdir(parents=True, exist_ok=True)
-
-X_train, y_train = load_xy("train")
-X_val, y_val = load_xy("val")
-check_columns(X_train)
 
 SEEDS = [42, 43, 44, 45, 46]
 
@@ -58,89 +54,91 @@ def parse_hidden(s):
     return tuple(int(p) for p in parts)
 
 
-# ---------------- 1. Toan bo 33 cau hinh (B1 + B2) ----------------
-rows = []
-print("=== Chay lai luoi 33 cau hinh (B1 + B2) ===")
-for hidden, alpha in itertools.product([(32,), (64,), (32, 16), (64, 32)],
-                                       [0.01, 0.03, 0.1, 0.3, 1.0]):
-    _, _, m, dt = fit_score(hidden, alpha, seed=SEED)
-    rows.append(dict(stage="B1", hidden=str(hidden), alpha=alpha, lr=np.nan, bs=np.nan,
-                     pr_auc=m["pr_auc"], roc_auc=m["roc_auc"], fit_s=round(dt, 1)))
+# Doc du lieu va grid da luu (khong chay lai toan bo luoi)
+X_train, y_train = load_xy("train")
+X_val, y_val = load_xy("val")
+check_columns(X_train)
 
-grid = pd.DataFrame(rows)
+grid = pd.read_csv(RESULTS / "round2_grid_all33.csv")
 b1 = grid[grid.stage == "B1"].sort_values("pr_auc", ascending=False).reset_index(drop=True)
-best_b1 = b1.iloc[0]
-
-# B2: 3x3, mo rong neu tai mep
-b2_rows = []
-for lr in [3e-4, 1e-3, 3e-3]:
-    for bs in [64, 128, 256]:
-        _, _, m, dt = fit_score(parse_hidden(best_b1["hidden"]), float(best_b1["alpha"]),
-                                seed=SEED, lr=lr, bs=bs)
-        b2_rows.append(dict(stage="B2", hidden=str(best_b1["hidden"]), alpha=float(best_b1["alpha"]),
-                            lr=lr, bs=bs, pr_auc=m["pr_auc"], roc_auc=m["roc_auc"],
-                            fit_s=round(dt, 1)))
-b2 = pd.DataFrame(b2_rows).sort_values("pr_auc", ascending=False).reset_index(drop=True)
-best_b2 = b2.iloc[0]
-at_edge = (best_b2["lr"] in [b2["lr"].min(), b2["lr"].max()] or
-           best_b2["bs"] in [b2["bs"].min(), b2["bs"].max()])
-if at_edge:
-    b2x_rows = []
-    for lr in [1e-4, 1e-2]:
-        for bs in [32, 512]:
-            _, _, m, dt = fit_score(parse_hidden(best_b1["hidden"]), float(best_b1["alpha"]),
-                                    seed=SEED, lr=lr, bs=bs)
-            b2x_rows.append(dict(stage="B2x", hidden=str(best_b1["hidden"]),
-                                 alpha=float(best_b1["alpha"]), lr=lr, bs=bs,
-                                 pr_auc=m["pr_auc"], roc_auc=m["roc_auc"],
-                                 fit_s=round(dt, 1)))
-    b2x = pd.DataFrame(b2x_rows).sort_values("pr_auc", ascending=False).reset_index(drop=True)
-    b2 = pd.concat([b2, b2x], ignore_index=True).sort_values("pr_auc", ascending=False).reset_index(drop=True)
-    best_b2 = b2.iloc[0]
-
-all33 = pd.concat([grid, b2], ignore_index=True)
-all33.to_csv(RESULTS / "round2_grid_all33.csv", index=False)
+b2 = grid[grid.stage.isin(["B2", "B2x"])].sort_values("pr_auc", ascending=False).reset_index(drop=True)
+best_b1, best_b2 = b1.iloc[0], b2.iloc[0]
 
 # ---- Chon cau hinh co PR-AUC cao nhat giua B1 va B2 ----
-use_b1 = bool(best_b1["pr_auc"] >= best_b2["pr_auc"])
+b1_hidden = parse_hidden(best_b1["hidden"]); b1_alpha = float(best_b1["alpha"])
+b1_lr, b1_bs = None, None  # mac dinh MLPClassifier, nhu B1
+b1_pr, b1_roc = best_b1["pr_auc"], best_b1["roc_auc"]
+
+b2_hidden = parse_hidden(best_b2["hidden"]); b2_alpha = float(best_b2["alpha"])
+b2_lr = best_b2["lr"] if "lr" in best_b2 and pd.notna(best_b2["lr"]) else None
+b2_bs = int(best_b2["bs"]) if "bs" in best_b2 and pd.notna(best_b2["bs"]) else None
+b2_pr, b2_roc = best_b2["pr_auc"], best_b2["roc_auc"]
+
+use_b1 = bool(b1_pr >= b2_pr)
 if use_b1:
-    final_hidden = parse_hidden(best_b1["hidden"])
-    final_alpha = float(best_b1["alpha"])
-    final_lr, final_bs = None, None   # mac dinh MLPClassifier, nhu B1
-    final_pr, final_roc = best_b1["pr_auc"], best_b1["roc_auc"]
+    final_hidden, final_alpha = b1_hidden, b1_alpha
+    final_lr, final_bs = b1_lr, b1_bs
+    final_pr, final_roc = b1_pr, b1_roc
     final_stage = "B1"
 else:
-    final_hidden = parse_hidden(best_b2["hidden"])
-    final_alpha = float(best_b2["alpha"])
-    final_lr, final_bs = best_b2["lr"], int(best_b2["bs"])
-    final_pr, final_roc = best_b2["pr_auc"], best_b2["roc_auc"]
+    final_hidden, final_alpha = b2_hidden, b2_alpha
+    final_lr, final_bs = b2_lr, b2_bs
+    final_pr, final_roc = b2_pr, b2_roc
     final_stage = "B2"
 
-print("=== So sanh tot nhat B1 vs tot nhat B2 ===")
-print("B1 tot nhat: hidden=%s alpha=%.2f lr=None bs=None PR-AUC=%.4f ROC-AUC=%.4f"
-      % (parse_hidden(best_b1["hidden"]), best_b1["alpha"],
-         best_b1["pr_auc"], best_b1["roc_auc"]))
+print("=== So sanh tot nhat B1 vs tot nhat B2 (tu file da luu, khong chay lai luoi) ===")
+print("B1 tot nhat: hidden=%s alpha=%.2f lr=%s bs=%s PR-AUC=%.4f ROC-AUC=%.4f"
+      % (b1_hidden, b1_alpha, b1_lr, b1_bs, b1_pr, b1_roc))
 print("B2 tot nhat: hidden=%s alpha=%s lr=%s bs=%s PR-AUC=%.4f ROC-AUC=%.4f"
-      % (parse_hidden(best_b2["hidden"]), best_b2["alpha"], best_b2["lr"],
-         best_b2["bs"], best_b2["pr_auc"], best_b2["roc_auc"]))
+      % (b2_hidden, b2_alpha, b2_lr, b2_bs, b2_pr, b2_roc))
 print("Chon: %s -> hidden=%s alpha=%s lr=%s bs=%s | PR-AUC=%.4f ROC-AUC=%.4f"
       % (final_stage, final_hidden, final_alpha, final_lr, final_bs,
          final_pr, final_roc))
 
-# ---------------- 2. Kiem tra logic chon: B1 cao hon B2 (gi lua, khong chay lai luoi) ----
-print("\n=== Kiem tra logic chon (gi lua): B1 cao hon B2 => chon B1 ===")
-mock_b1 = {"pr_auc": 0.7000, "roc_auc": 0.8500}
-mock_b2 = {"pr_auc": 0.6500, "roc_auc": 0.8200}
-chon_b1_mock = bool(mock_b1["pr_auc"] >= mock_b2["pr_auc"])
-assert chon_b1_mock is True, "Lua chon B1 khi B1 cao hon B2"
-print("Mock B1 PR-AUC=0.7000 > Mock B2 PR-AUC=0.6500 -> chon B1: %s (DUNG)" % chon_b1_mock)
-# Neu B2 cao hon B1, chon B2
-mock_b2 = {"pr_auc": 0.7500, "roc_auc": 0.8800}
-chon_b1_mock2 = bool(mock_b1["pr_auc"] >= mock_b2["pr_auc"])
-assert chon_b1_mock2 is False, "Lua chon B2 khi B2 cao hon B1"
-print("Mock B1 PR-AUC=0.7000 < Mock B2 PR-AUC=0.7500 -> chon B1: %s (DUNG, thuc te chon B2)" % chon_b1_mock2)
 
-# ---------------- 3. So sanh v1 vs v2 theo cap seed 42-46 ----------------
+# ---------------- Kiem tra logic chon: ca 2 nhánh B1-thang va B2-thang (gi lua) ----
+print("\n=== Kiem tra logic chon (gi lua): kiem tra ca 2 nhánh ===")
+
+
+def chon(b1, b2):
+    """Tra lai dict cua cau hinh duoc chon (max PR-AUC), b2 luon lay thong so tu best_b2."""
+    b1h = parse_hidden(b1["hidden"]); b1a = float(b1["alpha"]); b1l, b1b = None, None
+    b1p, b1r = b1["pr_auc"], b1["roc_auc"]
+    b2h = parse_hidden(b2["hidden"]); b2a = float(b2["alpha"])
+    b2l = b2["lr"] if "lr" in b2 and pd.notna(b2["lr"]) else None
+    b2b = int(b2["bs"]) if "bs" in b2 and pd.notna(b2["bs"]) else None
+    b2p, b2r = b2["pr_auc"], b2["roc_auc"]
+    if bool(b1p >= b2p):
+        return dict(stage="B1", hidden=b1h, alpha=b1a, lr=b1l, bs=b1b, pr=b1p, roc=b1r,
+                    b2_hidden=b2h, b2_alpha=b2a, b2_lr=b2l, b2_bs=b2b, b2_pr=b2p, b2_roc=b2r)
+    return dict(stage="B2", hidden=b2h, alpha=b2a, lr=b2l, bs=b2b, pr=b2p, roc=b2r,
+                b2_hidden=b2h, b2_alpha=b2a, b2_lr=b2l, b2_bs=b2b, b2_pr=b2p, b2_roc=b2r)
+
+
+# Nhánh A: B1 cao hon B2 -> chon B1 (lr=None, bs=None); thong so B2 in tu best_b2
+rA = chon({"pr_auc": 0.7000, "roc_auc": 0.8500, "hidden": "(64,)", "alpha": 0.01},
+          {"pr_auc": 0.6500, "roc_auc": 0.8200, "hidden": "(32,16)", "alpha": 1.0, "lr": 0.003, "bs": 256})
+assert rA["stage"] == "B1" and rA["lr"] is None and rA["bs"] is None
+assert rA["b2_lr"] == 0.003 and rA["b2_bs"] == 256, "B2 thong so phai luon lay tu best_b2"
+print("Nhan A (B1 thang): stage=%s | B2 in tu best_b2: lr=%.3f bs=%d (DUNG)"
+      % (rA["stage"], rA["b2_lr"], rA["b2_bs"]))
+
+# Nhánh B: B2 cao hon B1 -> chon B2 (lay lr/bs tu best_b2)
+rB = chon({"pr_auc": 0.6500, "roc_auc": 0.8200, "hidden": "(64,)", "alpha": 0.01},
+          {"pr_auc": 0.7500, "roc_auc": 0.8800, "hidden": "(32,16)", "alpha": 1.0, "lr": 0.001, "bs": 128})
+assert rB["stage"] == "B2" and rB["lr"] == 0.001 and rB["bs"] == 128
+print("Nhan B (B2 thang): stage=%s | lr=%.3f bs=%d lay tu best_b2 (DUNG)"
+      % (rB["stage"], rB["lr"], rB["bs"]))
+
+# Nhánh C: hoa -> chon B1 (>=)
+rC = chon({"pr_auc": 0.7000, "roc_auc": 0.8500, "hidden": "(64,)", "alpha": 0.01},
+          {"pr_auc": 0.7000, "roc_auc": 0.8200, "hidden": "(32,16)", "alpha": 1.0, "lr": 0.001, "bs": 128})
+assert rC["stage"] == "B1"
+print("Nhan C (hoa): stage=%s (duoc: B1) (DUNG)" % rC["stage"])
+print("Kiem tra logic chon ca 2 nhánh: TAT CA DUNG")
+
+
+# ---------------- So sanh v1 vs v2 theo cap seed 42-46 (chay 10 fit, khong chay lai toan bo luoi) ----
 print("\n=== So sanh v1 vs v2 theo cap seed 42-46 ===")
 v1_hidden, v1_alpha = (64,), 0.01
 paired = []
@@ -158,7 +156,8 @@ print(paired.round(4).to_string())
 print("Mean diff PR-AUC = %.4f (std %.4f)" % (paired["diff_pr"].mean(), paired["diff_pr"].std()))
 print("Mean diff ROC-AUC = %.4f (std %.4f)" % (paired["diff_roc"].mean(), paired["diff_roc"].std()))
 
-# ---------------- 4. Bao cao kiem tra model–.npy ----------------
+
+# ---------------- Bao cao kiem tra model–.npy ----------------
 print("\n=== Bao cao kiem tra mlp_v2.joblib vs proba_val_mlp_v2.npy ===")
 pipe = joblib.load(MODELS / "mlp_v2.joblib")
 proba_reload = pipe.predict_proba(X_val)[:, 1]
@@ -166,7 +165,6 @@ proba_npy = load_proba("mlp_v2", split="val")
 shape_reload = proba_reload.shape
 shape_npy = proba_npy.shape
 max_abs_diff = float(np.abs(proba_reload - proba_npy).max())
-khop_thu_tu = bool(len(proba_npy) == len(X_val))
 giong_nguyen_goc = bool(np.allclose(proba_npy, proba_reload))
 m_reload = evaluate(y_val, proba_reload)
 
@@ -174,10 +172,15 @@ print("Python:", platform.python_version())
 print("scikit-learn:", sklearn.__version__)
 print("numpy:", np.__version__)
 print("joblib:", joblib.__version__)
-print("shape reload:", shape_reload, "| shape npy:", shape_npy)
+print("=== Kiem tra model-vs-.npy (preriat, khong su dung do dai de chung minh thu tu) ===")
+print("shape reload (joblib.load + predict_proba):", shape_reload)
+print("shape .npy:", shape_npy)
 print("max abs diff (joblib vs npy): %.2e" % max_abs_diff)
-print("khop thu tu val.csv:", khop_thu_tu, "| giong nguyen goc:", giong_nguyen_goc)
+print("giong nguyen goc (np.allclose):", giong_nguyen_goc)
 print("Reload PR-AUC=%.4f ROC-AUC=%.4f" % (m_reload["pr_auc"], m_reload["roc_auc"]))
+print("Giai thich thu tu: .npy duoc luu boi save_proba('mlp_v2', proba, split='val') theo")
+print("thu tu dong cua X_val/val.csv; load_xy('val') cung doc theo thu tu file val.csv,")
+print("nen chi so thu i trong .npy tuong ung voi dong thu i cua val.csv.")
 
 npy_report = {
     "python_version": platform.python_version(),
@@ -187,33 +190,14 @@ npy_report = {
     "shape_reload": list(shape_reload),
     "shape_npy": list(shape_npy),
     "max_abs_diff_joblib_vs_npy": max_abs_diff,
-    "khop_thu_tu_val_csv": khop_thu_tu,
-    "giong_nguyen_goc": giong_nguyen_goc,
+    "giong_nguyen_goc_npy_vs_reload": giong_nguyen_goc,
     "reload_pr_auc": float(m_reload["pr_auc"]),
     "reload_roc_auc": float(m_reload["roc_auc"]),
+    "thu_tu_note": ".npy luu theo thu tu dong val.csv (save_proba); khong su dung do dai de chung minh thu tu",
 }
 pd.DataFrame([npy_report]).to_csv(RESULTS / "round2_npy_check.csv", index=False)
 with open(RESULTS / "round2_npy_check.txt", "w", encoding="utf-8") as f:
     for k, v in npy_report.items():
         f.write("%s: %s\n" % (k, v))
 
-# ---------------- 5. Bang theo khach san (mo don chon) ----------------
-print("\n=== Bang theo khach san (mo don chon, val) ===")
-proba_single = pipe.predict_proba(X_val)[:, 1]
-grp = evaluate_by_group(y_val, proba_single, X_val["hotel"]).round(3)
-print(grp.to_string())
-grp.to_csv(RESULTS / "round2_by_hotel.csv")
-
-# ---------------- 6. Ensemble (thong tin, khong luu neu khong tot hon) ----------------
-probas = []
-for s in SEEDS:
-    _, p, _, _ = fit_score(final_hidden, final_alpha, seed=s, lr=final_lr, bs=final_bs)
-    probas.append(p)
-proba_ens = np.mean(np.stack(probas), axis=0)
-m_ens = evaluate(y_val, proba_ens)
-m_single = evaluate(y_val, proba_single)
-print("\nEnsemble vs don: PR-AUC ens=%.4f single=%.4f | ROC-AUC ens=%.4f single=%.4f"
-      % (m_ens["pr_auc"], m_single["pr_auc"], m_ens["roc_auc"], m_single["roc_auc"]))
-print("Ensemble tot hon don:", bool(m_ens["pr_auc"] > m_single["pr_auc"]))
-
-print("\nDA LUU: round2_grid_all33.csv, round2_seed_paired.csv, round2_npy_check.csv/.txt, round2_by_hotel.csv")
+print("\nDA LUU: round2_seed_paired.csv, round2_npy_check.csv/.txt")
