@@ -1,0 +1,2 @@
+python_version,sklearn_version,numpy_version,joblib_version,shape_reload,shape_npy,max_abs_diff_joblib_vs_npy,khop_thu_tu_val_csv,giong_nguyen_goc,reload_pr_auc,reload_roc_auc
+3.11.2,1.9.1,2.4.6,1.6.0,[14400],[14400],2.978208502035784e-08,True,True,0.6312193858022317,0.8130049160617436
