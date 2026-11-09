@@ -1,0 +1,182 @@
+{
+  "author": "Tung",
+  "experiment": "E7",
+  "model": "mlp_v2_e7",
+  "split": "val",
+  "seed": 42,
+  "config": {
+    "hidden_layer_sizes": [
+      32,
+      16
+    ],
+    "alpha": 1.0,
+    "learning_rate_init": 0.003,
+    "batch_size": 256,
+    "early_stopping": true,
+    "n_iter_no_change": 10,
+    "max_iter": 200
+  },
+  "train_split": {
+    "cutoff_date": "2016-07-01",
+    "n_fit_before_cutoff": 32475,
+    "n_cal_from_cutoff": 8213,
+    "fit_date_range": [
+      "2015-07-01",
+      "2016-06-30"
+    ],
+    "cal_date_range": [
+      "2016-07-01",
+      "2016-08-31"
+    ],
+    "cancel_rate_fit": 0.2231562740569669,
+    "cancel_rate_cal": 0.30792645805430413,
+    "cancel_rate_all_train": 0.2402674007078254,
+    "no_overlap": true,
+    "parts_sum_to_train": true
+  },
+  "note_train_order": "Ngay den duoc dung de chia tap, KHONG duoc dua vao dac trung. Ngay den khong dam bao thu tu thoi diem dat.",
+  "calibrator_coef": [
+    0.5031470503831198
+  ],
+  "calibrator_intercept": [
+    0.3310635766140384
+  ],
+  "val_comparison": {
+    "mlp_v2_goc": {
+      "n": 14400.0,
+      "positive_rate": 0.284028,
+      "threshold": 0.5,
+      "accuracy": 0.743542,
+      "precision": 0.808709,
+      "recall": 0.127139,
+      "f1": 0.219734,
+      "roc_auc": 0.813005,
+      "pr_auc": 0.631219,
+      "brier": 0.173297,
+      "log_loss": 0.53311,
+      "mean_proba": 0.156663,
+      "tn": 10187.0,
+      "fp": 123.0,
+      "fn": 3570.0,
+      "tp": 520.0
+    },
+    "base_moi_chua_hieu_chinh": {
+      "n": 14400.0,
+      "positive_rate": 0.284028,
+      "threshold": 0.5,
+      "accuracy": 0.739792,
+      "precision": 0.763441,
+      "recall": 0.121516,
+      "f1": 0.20966,
+      "roc_auc": 0.782909,
+      "pr_auc": 0.581283,
+      "brier": 0.193804,
+      "log_loss": 0.619212,
+      "mean_proba": 0.127587,
+      "tn": 10156.0,
+      "fp": 154.0,
+      "fn": 3593.0,
+      "tp": 497.0
+    },
+    "base_moi_sau_hieu_chinh": {
+      "n": 14400.0,
+      "positive_rate": 0.284028,
+      "threshold": 0.5,
+      "accuracy": 0.748889,
+      "precision": 0.668803,
+      "recall": 0.229584,
+      "f1": 0.341827,
+      "roc_auc": 0.782909,
+      "pr_auc": 0.581283,
+      "brier": 0.163195,
+      "log_loss": 0.489958,
+      "mean_proba": 0.278408,
+      "tn": 9845.0,
+      "fp": 465.0,
+      "fn": 3151.0,
+      "tp": 939.0
+    }
+  },
+  "e8_r1_r2": [
+    {
+      "model_variant": "mlp_v2_goc",
+      "r": 1,
+      "t_theory": 0.5,
+      "t_best": 0.26,
+      "gap_vs_theory": -0.24,
+      "fp": 1239,
+      "fn": 2036,
+      "cost_best": 3275.0,
+      "cost_never": 4090.0,
+      "saving_vs_never": 0.199267
+    },
+    {
+      "model_variant": "mlp_v2_goc",
+      "r": 2,
+      "t_theory": 0.667,
+      "t_best": 0.43,
+      "gap_vs_theory": -0.237,
+      "fp": 240,
+      "fn": 3277,
+      "cost_best": 3757.0,
+      "cost_never": 4090.0,
+      "saving_vs_never": 0.081418
+    },
+    {
+      "model_variant": "base_moi_chua_hieu_chinh",
+      "r": 1,
+      "t_theory": 0.5,
+      "t_best": 0.25,
+      "gap_vs_theory": -0.25,
+      "fp": 901,
+      "fn": 2624,
+      "cost_best": 3525.0,
+      "cost_never": 4090.0,
+      "saving_vs_never": 0.138142
+    },
+    {
+      "model_variant": "base_moi_chua_hieu_chinh",
+      "r": 2,
+      "t_theory": 0.667,
+      "t_best": 0.58,
+      "gap_vs_theory": -0.087,
+      "fp": 85,
+      "fn": 3692,
+      "cost_best": 3862.0,
+      "cost_never": 4090.0,
+      "saving_vs_never": 0.055746
+    },
+    {
+      "model_variant": "base_moi_sau_hieu_chinh",
+      "r": 1,
+      "t_theory": 0.5,
+      "t_best": 0.45,
+      "gap_vs_theory": -0.05,
+      "fp": 843,
+      "fn": 2676,
+      "cost_best": 3519.0,
+      "cost_never": 4090.0,
+      "saving_vs_never": 0.139609
+    },
+    {
+      "model_variant": "base_moi_sau_hieu_chinh",
+      "r": 2,
+      "t_theory": 0.667,
+      "t_best": 0.62,
+      "gap_vs_theory": -0.047,
+      "fp": 87,
+      "fn": 3690,
+      "cost_best": 3864.0,
+      "cost_never": 4090.0,
+      "saving_vs_never": 0.055257
+    }
+  ],
+  "artifacts": {
+    "base_model": "/home/user/SmartStay-AI-Test-/models/mlp_v2_e7_base.joblib",
+    "calibrated_model": "/home/user/SmartStay-AI-Test-/models/mlp_v2_e7_calibrated.joblib",
+    "base_proba_val": "/home/user/SmartStay-AI-Test-/models/proba_val_mlp_v2_e7_base.npy",
+    "calibrated_proba_val": "/home/user/SmartStay-AI-Test-/models/proba_val_mlp_v2_e7_calibrated.npy"
+  },
+  "limitation": "Ket qua val co the lac quan vi cau hinh va nguong da duoc chon tren val. Khong doc test.",
+  "generated_at": "2026-11-09 05:17"
+}
