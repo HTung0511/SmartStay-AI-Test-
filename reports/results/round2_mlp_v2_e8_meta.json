@@ -1,0 +1,39 @@
+{
+  "model": "mlp_v2",
+  "split": "val",
+  "n": 14400,
+  "n_canceled": 4090,
+  "n_not_canceled": 10310,
+  "cancel_rate": 0.28402777777777777,
+  "proba_file": "/home/user/SmartStay-AI-Test-/models/proba_val_mlp_v2.npy",
+  "note": "Xac suat luu boi save_proba('mlp_v2', proba, split='val') theo thu tu dong val.csv.",
+  "ratios": [
+    0.5,
+    1,
+    2,
+    3,
+    5,
+    10
+  ],
+  "c_empty": 1.0,
+  "thresholds": "0.01-0.99 buoc 0.01 (99 ngưỡng), hoa chi phí -> ngưỡng thấp nhất dau tien (idxmin)",
+  "t_theory_r2": 0.667,
+  "r2": {
+    "t_best": 0.43,
+    "gap_vs_theory": -0.237,
+    "fp": 240,
+    "fn": 3277,
+    "cost_best": 3757.0,
+    "cost_t0.5": 3816.0,
+    "cost_never": 4090.0,
+    "cost_always": 20620.0,
+    "saving_vs_never": 0.0814180929095355
+  },
+  "generated_at": "2026-11-09 04:22",
+  "environment": {
+    "python": "3.11.2",
+    "scikit-learn": "1.9.1",
+    "numpy": "2.4.6"
+  },
+  "conso": "Chi phí là giả định của nhóm; kết quả chỉ trên val, chưa mở test."
+}
