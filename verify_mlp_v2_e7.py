@@ -12,10 +12,13 @@ Quy truan:
     sau hieu chinh. Brier, log loss, PR-AUC, ROC-AUC, mean probability, ty le huy.
   - E8 voi r = 1, 2: nguong tot nhat trong luoi, FP, FN, cost, tiet kiem so voi never.
   - Luu artifact ten phan biet (_e7), KHONG ghi de mlp_v2 hoac ket qua cu.
-  - Kiem tra nap lai model va xac suat val. Luu bao cao E7 rieng.
+  - Kiem tra nap lai model va xac suat val: bao shape, max abs diff, ket qua khop
+    cho ca base laland calibrated.
+  - Luu bao cao E7 rieng. Log vao Tran_Hoang_Tung.csv (author dung quy uoc).
 
 Con so chi phi la GIA DINH cua nhom. Ket qua chi tren val, co the lac quan vi
-cau hinh va nguong da duoc chon tren val.
+cau hinh va nguong da duoc chon tren val. Chua ket luan calibration se tot hon
+tren test.
 """
 import sys, os, json
 from datetime import datetime
@@ -31,16 +34,18 @@ from sklearn.metrics import (average_precision_score, brier_score_loss, log_loss
 from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import Pipeline
 
-from src.calibration import fit_calibrator, SigmoidCalibratedModel
+from src.calibration import fit_calibrator
 from src.data import REPO_ROOT, SEED, load_xy
-from src.evaluate import evaluate, log_result, save_proba
-from src.features import build_preprocessor, check_columns, NUMERIC, CATEGORICAL
+from src.evaluate import evaluate, load_proba, log_result, save_proba
+from src.features import build_preprocessor, check_columns, NUMERIC, CATEGORICAL, EXCLUDED
 from src.cost import cost_table, cost_at_threshold, baseline_costs, DEFAULT_THRESHOLDS
 
 RESULTS = REPO_ROOT / "reports" / "results"
 MODELS = REPO_ROOT / "models"
 RESULTS.mkdir(parents=True, exist_ok=True)
 MODELS.mkdir(parents=True, exist_ok=True)
+
+AUTHOR = "Tran_Hoang_Tung"
 
 # ---- Cau hinh v2 (giong mlp_v2) ----
 V2_HIDDEN = (32, 16)
@@ -76,7 +81,10 @@ print(f"Phan fit (truoc cutoff): {n_fit:,} don, ngay {dates[fit_mask].min().date
 print(f"Phan cal (tu cutoff):   {n_cal:,} don, ngay {dates[cal_mask].min().date()} -> {dates[cal_mask].max().date()}, ty le huy {y_train[cal_mask].mean():.2%}")
 print(f"Khong trung: {bool((fit_mask & cal_mask).sum() == 0)}, cong lai du train: {bool(n_fit + n_cal == len(dates))}")
 print(f"Ty le huy toan bo train: {y_train.mean():.2%}")
-print("Luu y: ngay den khong dam bao thu tu thoi diem dat (mot dat den sau co the da duoc dat truoc mot don den som).")
+print("Luu y: ngay den dung de chia tap. Thang den (arrival_date_month) VAN duoc duoc phep")
+print("       lam dac trung (xem src/features.py CATEGORICAL); chi arrival_date_year va")
+print("       arrival_date_day_of_month bo luot (EXCLUDED). Ngay den khong dam bao thu tu")
+print("       thoi diem dat (mot dat den sau co the da duoc dat truoc mot don den som).")
 
 # ---- Fit MLP cau hinh v2 tren phan dau train ----
 print("\n=== Fit MLP cau hinh v2 tren phan dau train ===")
@@ -149,8 +157,6 @@ for label, p in [("mlp_v2_goc", p_mlp_v2),
 e8 = pd.DataFrame(e8_rows.values())
 print(e8.round(4).to_string(index=False))
 
-# ---- Xac luong calibrator he so (da in tren) ----
-
 # ---- Luu artifact (ten phan biet, khong ghi de mlp_v2) ----
 base_path = MODELS / "mlp_v2_e7_base.joblib"
 cal_path = MODELS / "mlp_v2_e7_calibrated.joblib"
@@ -160,18 +166,48 @@ joblib.dump(calibrated, cal_path)
 save_proba("mlp_v2_e7_base", p_base_new, split="val")
 save_proba("mlp_v2_e7_calibrated", p_cal_new, split="val")
 
-# Kiem tra nap lai model va xac suat val
+# ---- Kiem tra nap lai model va xac suat val (ca base laland calibrated) ----
+print("\n=== Kiem tra nap lai model va xac suat val ===")
 reloaded_base = joblib.load(base_path)
 reloaded_cal = joblib.load(cal_path)
 p_base_reload = reloaded_base.predict_proba(X_val)[:, 1]
 p_cal_reload = reloaded_cal.predict_proba(X_val)[:, 1]
-assert np.allclose(p_base_reload, p_base_new, atol=1e-7), "base reload khong khop"
-assert np.allclose(p_cal_reload, p_cal_new, atol=1e-7), "calibrated reload khong khop"
-print("\nDa kiem tra: nap lai model va xac suat val khop nhau (atol=1e-7).")
+
+p_base_npy = load_proba("mlp_v2_e7_base", split="val")
+p_cal_npy = load_proba("mlp_v2_e7_calibrated", split="val")
+
+checks = {
+    "mlp_v2_e7_base": {
+        "shape_reload": p_base_reload.shape,
+        "shape_npy": p_base_npy.shape,
+        "max_abs_diff_reload_vs_new": float(np.abs(p_base_reload - p_base_new).max()),
+        "max_abs_diff_npy_vs_new": float(np.abs(p_base_npy - p_base_new).max()),
+        "max_abs_diff_reload_vs_npy": float(np.abs(p_base_reload - p_base_npy).max()),
+        "reload_matches_new": bool(np.allclose(p_base_reload, p_base_new, atol=1e-7)),
+        "npy_matches_new": bool(np.allclose(p_base_npy, p_base_new, atol=1e-7)),
+    },
+    "mlp_v2_e7_calibrated": {
+        "shape_reload": p_cal_reload.shape,
+        "shape_npy": p_cal_npy.shape,
+        "max_abs_diff_reload_vs_new": float(np.abs(p_cal_reload - p_cal_new).max()),
+        "max_abs_diff_npy_vs_new": float(np.abs(p_cal_npy - p_cal_new).max()),
+        "max_abs_diff_reload_vs_npy": float(np.abs(p_cal_reload - p_cal_npy).max()),
+        "reload_matches_new": bool(np.allclose(p_cal_reload, p_cal_new, atol=1e-7)),
+        "npy_matches_new": bool(np.allclose(p_cal_npy, p_cal_new, atol=1e-7)),
+    },
+}
+for name, c in checks.items():
+    print(f"{name}: shape_reload={c['shape_reload']} shape_npy={c['shape_npy']}"
+          f" max_abs_diff(reload vs new)={c['max_abs_diff_reload_vs_new']:.2e}"
+          f" max_abs_diff(npy vs new)={c['max_abs_diff_npy_vs_new']:.2e}"
+          f" max_abs_diff(reload vs npy)={c['max_abs_diff_reload_vs_npy']:.2e}"
+          f" reload_matches={c['reload_matches_new']} npy_matches={c['npy_matches_new']}")
+assert all(c["reload_matches_new"] and c["npy_matches_new"] for c in checks.values()), "ket qua nap lai khong khop"
+print("Da kiem tra: nap lai model va xac suat val khop nhau cho ca base laland calibrated (atol=1e-7).")
 
 # ---- Luu bao cao E7 rieng ----
 report = {
-    "author": "Tung",
+    "author": AUTHOR,
     "experiment": "E7",
     "model": "mlp_v2_e7",
     "split": "val",
@@ -193,28 +229,30 @@ report = {
         "no_overlap": bool((fit_mask & cal_mask).sum() == 0),
         "parts_sum_to_train": bool(n_fit + n_cal == len(dates)),
     },
-    "note_train_order": "Ngay den duoc dung de chia tap, KHONG duoc dua vao dac trung. Ngay den khong dam bao thu tu thoi diem dat.",
+    "feature_note": "Ngay den dung de chia tap (cutoff). Thang den (arrival_date_month) VAN duoc duoc phep lam dac trung (xem src/features.py CATEGORICAL); chi arrival_date_year va arrival_date_day_of_month bo luot (EXCLUDED). Ngay den khong dam bao thu tu thoi diem dat.",
     "calibrator_coef": calibrated.calibrator.coef_.ravel().tolist(),
     "calibrator_intercept": calibrated.calibrator.intercept_.ravel().tolist(),
     "val_comparison": cmp.round(6).to_dict(orient="index"),
     "e8_r1_r2": e8.round(6).to_dict(orient="records"),
+    "reload_checks": checks,
     "artifacts": {
         "base_model": str(base_path),
         "calibrated_model": str(cal_path),
         "base_proba_val": str(MODELS / "proba_val_mlp_v2_e7_base.npy"),
         "calibrated_proba_val": str(MODELS / "proba_val_mlp_v2_e7_calibrated.npy"),
     },
-    "limitation": "Ket qua val co the lac quan vi cau hinh va nguong da duoc chon tren val. Khong doc test.",
+    "limitation": "Ket qua val co the lac quan vi cau hinh va nguong da duoc chon tren val. Chua ket luan calibration se tot hon tren test. Khong doc test.",
     "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
 }
 report_path = RESULTS / "mlp_v2_e7_report.json"
 with open(report_path, "w", encoding="utf-8") as f:
     json.dump(report, f, indent=2, ensure_ascii=False)
 
-# Log vao Tran_Hoang_Tung.csv (experiment E7, cot rieng, khong ghi de dong cu)
-log_result("Tung", "E7", "mlp_v2_e7_base", "val", rows["base_moi_chua_hieu_chinh"],
+# Log vao Tran_Hoang_Tung.csv (author dung quy uoc), cot rieng, khong ghi de dong cu.
+# log_result se thay dong neu trung khoa (experiment, model, split, note).
+log_result(AUTHOR, "E7", "mlp_v2_e7_base", "val", rows["base_moi_chua_hieu_chinh"],
            "MLP v2 config, base fit tren phan dau train (truoc cutoff 80% ngay den)")
-log_result("Tung", "E7", "mlp_v2_e7_calibrated", "val", rows["base_moi_sau_hieu_chinh"],
+log_result(AUTHOR, "E7", "mlp_v2_e7_calibrated", "val", rows["base_moi_sau_hieu_chinh"],
            f"MLP v2 + sigmoid calibrator tren phan cuoi train (tu {cutoff.date()})")
 
 print(f"\nDa luu bao cao E7: {report_path}")

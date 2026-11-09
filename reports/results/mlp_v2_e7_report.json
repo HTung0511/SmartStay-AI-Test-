@@ -1,5 +1,5 @@
 {
-  "author": "Tung",
+  "author": "Tran_Hoang_Tung",
   "experiment": "E7",
   "model": "mlp_v2_e7",
   "split": "val",
@@ -34,7 +34,7 @@
     "no_overlap": true,
     "parts_sum_to_train": true
   },
-  "note_train_order": "Ngay den duoc dung de chia tap, KHONG duoc dua vao dac trung. Ngay den khong dam bao thu tu thoi diem dat.",
+  "feature_note": "Ngay den dung de chia tap (cutoff). Thang den (arrival_date_month) VAN duoc duoc phep lam dac trung (xem src/features.py CATEGORICAL); chi arrival_date_year va arrival_date_day_of_month bo luot (EXCLUDED). Ngay den khong dam bao thu tu thoi diem dat.",
   "calibrator_coef": [
     0.5031470503831198
   ],
@@ -171,12 +171,40 @@
       "saving_vs_never": 0.055257
     }
   ],
+  "reload_checks": {
+    "mlp_v2_e7_base": {
+      "shape_reload": [
+        14400
+      ],
+      "shape_npy": [
+        14400
+      ],
+      "max_abs_diff_reload_vs_new": 0.0,
+      "max_abs_diff_npy_vs_new": 2.9787154631755186e-08,
+      "max_abs_diff_reload_vs_npy": 2.9787154631755186e-08,
+      "reload_matches_new": true,
+      "npy_matches_new": true
+    },
+    "mlp_v2_e7_calibrated": {
+      "shape_reload": [
+        14400
+      ],
+      "shape_npy": [
+        14400
+      ],
+      "max_abs_diff_reload_vs_new": 0.0,
+      "max_abs_diff_npy_vs_new": 2.9765071074550065e-08,
+      "max_abs_diff_reload_vs_npy": 2.9765071074550065e-08,
+      "reload_matches_new": true,
+      "npy_matches_new": true
+    }
+  },
   "artifacts": {
     "base_model": "/home/user/SmartStay-AI-Test-/models/mlp_v2_e7_base.joblib",
     "calibrated_model": "/home/user/SmartStay-AI-Test-/models/mlp_v2_e7_calibrated.joblib",
     "base_proba_val": "/home/user/SmartStay-AI-Test-/models/proba_val_mlp_v2_e7_base.npy",
     "calibrated_proba_val": "/home/user/SmartStay-AI-Test-/models/proba_val_mlp_v2_e7_calibrated.npy"
   },
-  "limitation": "Ket qua val co the lac quan vi cau hinh va nguong da duoc chon tren val. Khong doc test.",
-  "generated_at": "2026-11-09 05:17"
+  "limitation": "Ket qua val co the lac quan vi cau hinh va nguong da duoc chon tren val. Chua ket luan calibration se tot hon tren test. Khong doc test.",
+  "generated_at": "2026-11-09 05:44"
 }
