@@ -1,89 +1,66 @@
-import { useCallback, useEffect, useState } from "react";
-import { Overview } from "./components/Overview";
-import { Presenter } from "./components/Presenter";
-import { slides } from "./slides";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { SLIDES } from "@/slides/slides";
+import { Stage } from "@/components/Stage";
+import { Controls } from "@/components/Controls";
+import { Overview } from "@/components/Overview";
+import { useAutoHide, useFontsReady } from "@/components/hooks";
 
-type Route = { mode: "overview" } | { mode: "present"; index: number };
-
-const total = slides.length;
-
-function parseHash(): Route {
-  const m = window.location.hash.match(/^#\/slide\/(\d+)/);
-  if (m) {
-    const n = Math.min(Math.max(parseInt(m[1], 10), 1), total);
-    return { mode: "present", index: n - 1 };
-  }
-  return { mode: "overview" };
-}
-const slideHash = (i: number) => `#/slide/${i + 1}`;
+type Mode = "present" | "overview";
+const TOTAL = SLIDES.length;
 
 export default function App() {
-  const [route, setRoute] = useState<Route>(parseHash);
-  const [selected, setSelected] = useState(() => {
-    const r = parseHash();
-    return r.mode === "present" ? r.index : 0;
-  });
+  const ready = useFontsReady();
+  const [mode, setMode] = useState<Mode>("present");
+  const [index, setIndex] = useState(0);
+  const { active, setHover } = useAutoHide(2600);
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
 
-  useEffect(() => {
-    const onHash = () => setRoute(parseHash());
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
-  }, []);
-
-  useEffect(() => {
-    if (route.mode === "present") setSelected(route.index);
-  }, [route]);
-
+  const prev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), []);
+  const next = useCallback(() => setIndex((i) => Math.min(TOTAL - 1, i + 1)), []);
+  const openOverview = useCallback(() => setMode("overview"), []);
+  const present = useCallback(() => setMode("present"), []);
   const openSlide = useCallback((i: number) => {
-    window.location.hash = slideHash(i);
-  }, []);
-  const openOverview = useCallback(() => {
-    window.location.hash = "#/overview";
-  }, []);
-  /** Đổi slide trong lúc trình chiếu: thay thế mục lịch sử để nút Back quay về trang tổng quát */
-  const moveTo = useCallback((i: number) => {
-    if (i < 0 || i >= total) return;
-    window.history.replaceState(null, "", slideHash(i));
-    setRoute({ mode: "present", index: i });
+    setIndex(i);
+    setMode("present");
   }, []);
 
-  const presentIndex = route.mode === "present" ? route.index : -1;
-
-  /* Phím tắt: chỉ hoạt động ở chế độ trình chiếu và không kích hoạt khi đang nhập liệu */
+  // Phím tắt khi trình chiếu: A = về trước, D = sang tiếp theo, Esc = tổng quan
   useEffect(() => {
-    if (presentIndex < 0) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.repeat || e.isComposing) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      const t = e.target as HTMLElement | null;
-      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
-      const key = e.key.toLowerCase();
-      if (key === "d") {
-        moveTo(presentIndex + 1);
-      } else if (key === "a") {
-        moveTo(presentIndex - 1);
-      } else if (e.key === "Escape") {
+      if (modeRef.current !== "present" || e.ctrlKey || e.metaKey || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k === "a" || e.code === "KeyA" || k === "arrowleft") {
+        if (!e.repeat) prev();
+      } else if (k === "d" || e.code === "KeyD" || k === "arrowright") {
+        if (!e.repeat) next();
+      } else if (k === "escape") {
         openOverview();
-      }
+      } else return;
+      e.preventDefault();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [presentIndex, moveTo, openOverview]);
+  }, [prev, next, openOverview]);
 
-  if (route.mode === "present") {
-    return (
-      <Presenter
-        index={route.index}
-        onPrev={() => moveTo(route.index - 1)}
-        onNext={() => moveTo(route.index + 1)}
-        onExit={openOverview}
-      />
-    );
+  if (!ready) return <div style={{ position: "fixed", inset: 0, background: "#04080c" }} />;
+
+  if (mode === "overview") {
+    return <Overview current={index} onOpen={openSlide} onClose={present} />;
   }
 
   return (
-    <div className="h-dvh overflow-y-auto overflow-x-hidden bg-[#08121b]">
-      <Overview selected={selected} onOpen={openSlide} onStart={() => openSlide(selected)} />
-    </div>
+    <>
+      <Stage index={index} idle={!active} />
+      <Controls
+        index={index}
+        total={TOTAL}
+        active={active}
+        onPrev={prev}
+        onNext={next}
+        onOverview={openOverview}
+        onHover={setHover}
+      />
+    </>
   );
 }
